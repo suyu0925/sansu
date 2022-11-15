@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  sansu:
+    container_name: sansu
+    build:
+      context: .
+    image: "sansu:0.0.1"
+    restart: always
+    ports:
+      - ${PORT}:${PORT}
