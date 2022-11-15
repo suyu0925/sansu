@@ -1,28 +1,26 @@
+import base64
 import os
 import re
-from enum import Enum
 import uuid
-import base64
+from enum import Enum
 
 import requests
 import werobot
-from werobot.replies import VoiceReply
 from tencentcloud.common import credential
 from tencentcloud.tts.v20190823 import models, tts_client
-from dotenv import load_dotenv
+from werobot.replies import ImageReply, VoiceReply
 
-load_dotenv()
+import config
+import fanyi
+import stability
 
-
-robot = werobot.WeRoBot(token=os.environ['TOKEN'])
-robot.config['APP_ID'] = os.environ['APP_ID']
-robot.config['APP_SECRET'] = os.environ['APP_SECRET']
+robot = werobot.WeRoBot(token=config.token)
+robot.config['APP_ID'] = config.appid
+robot.config['APP_SECRET'] = config.appsecret
 client = robot.client
 
 cred = credential.Credential(
-    os.environ.get("TENCENTCLOUD_SECRET_ID"),
-    os.environ.get("TENCENTCLOUD_SECRET_KEY")
-)
+    config.tencentcloud_appid, config.tencentcloud_appsecret)
 tencentcloud_client = tts_client.TtsClient(cred, "ap-shanghai")
 
 
@@ -30,12 +28,14 @@ class Stage(str, Enum):
     Idle = '待机'
     TTS = '语音合成'
     Chat = '闲聊'
+    AIPaint = '智能画画'
 
 
 Prompt = """\
 请发送关键词以进入相应模式：
     闲聊
     语音合成
+    智能画画
 """
 
 
@@ -95,6 +95,27 @@ def chat(text, message):
     return tts(r.json()['content'], message)
 
 
+@robot.filter('智能画画')
+def entry_ai_paint(message, session):
+    if session['stage'] == Stage.Idle:
+        session['stage'] = Stage.AIPaint
+        return "进入*智能画画*模式，请描述你想画的画吧。比如：超现代飞船穿梭在赛博朋克的城市中，阴沉的天空下着小雨。退出请发送/q"
+
+
+def ai_paint(text, message):
+    filename = uuid.uuid4()
+    prompt = fanyi.translate(text)
+    img = stability.generate(prompt)
+    img.save(f'./{filename}.png', 'PNG')
+    with open(f'./{filename}.png', 'rb') as f:
+        res = client.upload_media('image', f)
+    os.remove(f'./{filename}.png')
+    return ImageReply(
+        message=message,
+        media_id=res['media_id']
+    )
+
+
 @robot.text
 def common(message, session):
     if not 'stage' in session or session['stage'] is None or session['stage'] == Stage.Idle:
@@ -110,9 +131,10 @@ def common(message, session):
             return tts(text, message)
         elif session['stage'] == Stage.Chat:
             return chat(text, message)
+        elif session['stage'] == Stage.AIPaint:
+            return ai_paint(text, message)
 
 
-# 让服务器监听在 0.0.0.0:25001
 robot.config['HOST'] = '0.0.0.0'
-robot.config['PORT'] = 25001
+robot.config['PORT'] = config.port
 robot.run()
