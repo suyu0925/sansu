@@ -3,6 +3,7 @@ import os
 import re
 import uuid
 from enum import Enum
+import shutil
 
 import requests
 import werobot
@@ -14,6 +15,7 @@ import config
 import fanyi
 import stability
 from image import unet_cartoon, unet_artstyle, unet_sketch, unet_cartoon_handdrawn
+from exif import get_brief_exif
 
 robot = werobot.WeRoBot(token=config.token)
 robot.config['APP_ID'] = config.appid
@@ -42,7 +44,6 @@ Prompt = """\
     闲聊
     语音合成
     智能画画
-    查看照片信息
     人脸卡通化
     人脸卡通手绘
     人脸素描化
@@ -53,6 +54,13 @@ Prompt = """\
 def is_in_idle(session):
     return not 'stage' in session or session['stage'] is None or session['stage'] == Stage.Idle
 
+
+def save_img_url_to_local(img_url, filename):
+    r = requests.get(img_url, stream=True)
+    if r.status_code == 200:
+        with open(filename, 'wb') as f:
+            r.raw.decode_content = True
+            shutil.copyfileobj(r.raw, f)       
 
 @robot.handler
 def hello(message):
@@ -134,7 +142,7 @@ def ai_paint(text, message):
 @robot.filter('查看照片信息')
 def entry_unet_cartoon(message, session):
     if is_in_idle(session):
-        session['stage'] = Stage.UNetCartoon
+        session['stage'] = Stage.ViewExif
         return "进入*查看照片信息*模式，请直接发送你想查看信息的照片。退出请发送/q"
 
 
@@ -243,9 +251,12 @@ def common_image(message, session):
                 media_id=res['media_id']
             )
         elif session['stage'] == Stage.ViewExif:
-            return f"""
-    未完成
-"""
+            filename = f"./{uuid.uuid4()}.png"
+            save_img_url_to_local(img_url, filename)
+            with open(filename, 'rb') as f:
+                tags = get_brief_exif(f)
+            os.remove(filename)
+            return '\n'.join([f"{key}： {tags[key]}" for key in tags.keys()])
         else:
             return '当前模式下不支持图片'
 

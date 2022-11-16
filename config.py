@@ -17,6 +17,9 @@ tencentcloud_appsecret = os.environ['TENCENTCLOUD_SECRET_KEY']
 # stability for ai paint
 stability_key = os.environ['STABILITY_KEY']
 
+# lbs
+baidu_lbs_key = os.environ['BAIDU_LBS_KEY']
+
 # fanyi for translate
 fanyi_appid = os.environ['BAIDU_FANYI_APPID']
 fanyi_key = os.environ['BAIDU_FANYI_KEY']
