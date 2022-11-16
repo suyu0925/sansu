@@ -7,5 +7,12 @@ services:
       context: .
     image: "sansu:0.0.1"
     restart: always
+    volumes:
+      - ./modelscope_cache:/mnt/workspace/.cache/modelscope
     ports:
       - ${PORT}:${PORT}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]

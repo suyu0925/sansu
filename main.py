@@ -13,6 +13,7 @@ from werobot.replies import ImageReply, VoiceReply
 import config
 import fanyi
 import stability
+from image import unet_cartoon, unet_artstyle, unet_sketch, unet_cartoon_handdrawn
 
 robot = werobot.WeRoBot(token=config.token)
 robot.config['APP_ID'] = config.appid
@@ -29,6 +30,11 @@ class Stage(str, Enum):
     TTS = '语音合成'
     Chat = '闲聊'
     AIPaint = '智能画画'
+    ViewExif = '查看照片信息'
+    UNetCartoon = '人脸卡通化'
+    UNetCartoonHanddrawn = '人脸卡通手绘'
+    UNetSketch = '人脸素描化'
+    UNetArtStyle = '人脸艺术化'
 
 
 Prompt = """\
@@ -36,7 +42,16 @@ Prompt = """\
     闲聊
     语音合成
     智能画画
+    查看照片信息
+    人脸卡通化
+    人脸卡通手绘
+    人脸素描化
+    人脸艺术化
 """
+
+
+def is_in_idle(session):
+    return not 'stage' in session or session['stage'] is None or session['stage'] == Stage.Idle
 
 
 @robot.handler
@@ -56,7 +71,7 @@ def unsubscribe(message, session):
 
 @robot.filter("语音合成")
 def enter_tts(message, session):
-    if session['stage'] == Stage.Idle:
+    if is_in_idle(session):
         session['stage'] = Stage.TTS
         return "进入*语音合成*模式，请直接发送要合成的文本。退出请发送/q"
 
@@ -80,7 +95,7 @@ def tts(text, message):
 
 @robot.filter('闲聊')
 def entry_chat(message, session):
-    if session['stage'] == Stage.Idle:
+    if is_in_idle(session):
         session['stage'] = Stage.Chat
         return "进入*闲聊*模式，随便发点什么来聊天吧。退出请发送/q"
 
@@ -97,7 +112,7 @@ def chat(text, message):
 
 @robot.filter('智能画画')
 def entry_ai_paint(message, session):
-    if session['stage'] == Stage.Idle:
+    if is_in_idle(session):
         session['stage'] = Stage.AIPaint
         return "进入*智能画画*模式，请描述你想画的画吧。比如：超现代飞船穿梭在赛博朋克的城市中，阴沉的天空下着小雨。退出请发送/q"
 
@@ -116,9 +131,44 @@ def ai_paint(text, message):
     )
 
 
+@robot.filter('查看照片信息')
+def entry_unet_cartoon(message, session):
+    if is_in_idle(session):
+        session['stage'] = Stage.UNetCartoon
+        return "进入*查看照片信息*模式，请直接发送你想查看信息的照片。退出请发送/q"
+
+
+@robot.filter('人脸卡通化')
+def entry_unet_cartoon(message, session):
+    if is_in_idle(session):
+        session['stage'] = Stage.UNetCartoon
+        return "进入*人脸卡通化*模式，请直接发送你想卡通化的照片。退出请发送/q"
+
+
+@robot.filter('人脸卡通手绘')
+def entry_unet_cartoon_handdrawn(message, session):
+    if is_in_idle(session):
+        session['stage'] = Stage.UNetCartoonHanddrawn
+        return "进入*人脸卡通手绘*模式，请直接发送你想卡通化的照片。退出请发送/q"
+
+
+@robot.filter('人脸素描化')
+def entry_unet_sketch(message, session):
+    if is_in_idle(session):
+        session['stage'] = Stage.UNetSketch
+        return "进入*人脸素描化*模式，请直接发送你想素描化的照片。退出请发送/q"
+
+
+@robot.filter('人脸艺术化')
+def entry_unet_artstyle(message, session):
+    if is_in_idle(session):
+        session['stage'] = Stage.UNetArtStyle
+        return "进入*人脸艺术化*模式，请直接发送你想艺术化的照片。退出请发送/q"
+
+
 @robot.text
-def common(message, session):
-    if not 'stage' in session or session['stage'] is None or session['stage'] == Stage.Idle:
+def common_text(message, session):
+    if is_in_idle(session):
         session['stage'] = Stage.Idle
         return Prompt
     else:
@@ -133,6 +183,71 @@ def common(message, session):
             return chat(text, message)
         elif session['stage'] == Stage.AIPaint:
             return ai_paint(text, message)
+        elif session['stage'] == Stage.UNetCartoon:
+            return "进入*人脸卡通化*模式，请直接发送你想卡通化的照片。退出请发送/q"
+        elif session['stage'] == Stage.UNetCartoonHanddrawn:
+            return "进入*人脸卡通手绘*模式，请直接发送你想卡通化的照片。退出请发送/q"
+        elif session['stage'] == Stage.UNetSketch:
+            return "进入*人脸素描化*模式，请直接发送你想卡通化的照片。退出请发送/q"
+        elif session['stage'] == Stage.UNetArtStyle:
+            return "进入*人脸艺术化*模式，请直接发送你想卡通化的照片。退出请发送/q"
+        elif session['stage'] == Stage.ViewExif:
+            return "进入*查看照片信息*模式，请直接发送你想查看信息的照片。退出请发送/q"
+
+
+@robot.image
+def common_image(message, session):
+    if not 'stage' in session or session['stage'] is None or session['stage'] == Stage.Idle:
+        session['stage'] = Stage.Idle
+        return Prompt
+    else:
+        img_url = message.img
+        if session['stage'] == Stage.UNetCartoon:
+            out_path = f"./{uuid.uuid4()}.png"
+            unet_cartoon(img_url, out_path)
+            with open(out_path, 'rb') as f:
+                res = client.upload_media('image', f)
+            os.remove(out_path)
+            return ImageReply(
+                message=message,
+                media_id=res['media_id']
+            )
+        elif session['stage'] == Stage.UNetCartoonHanddrawn:
+            out_path = f"./{uuid.uuid4()}.png"
+            unet_cartoon_handdrawn(img_url, out_path)
+            with open(out_path, 'rb') as f:
+                res = client.upload_media('image', f)
+            os.remove(out_path)
+            return ImageReply(
+                message=message,
+                media_id=res['media_id']
+            )
+        elif session['stage'] == Stage.UNetSketch:
+            out_path = f"./{uuid.uuid4()}.png"
+            unet_sketch(img_url, out_path)
+            with open(out_path, 'rb') as f:
+                res = client.upload_media('image', f)
+            os.remove(out_path)
+            return ImageReply(
+                message=message,
+                media_id=res['media_id']
+            )
+        elif session['stage'] == Stage.UNetArtStyle:
+            out_path = f"./{uuid.uuid4()}.png"
+            unet_artstyle(img_url, out_path)
+            with open(out_path, 'rb') as f:
+                res = client.upload_media('image', f)
+            os.remove(out_path)
+            return ImageReply(
+                message=message,
+                media_id=res['media_id']
+            )
+        elif session['stage'] == Stage.ViewExif:
+            return f"""
+    未完成
+"""
+        else:
+            return '当前模式下不支持图片'
 
 
 robot.config['HOST'] = '0.0.0.0'

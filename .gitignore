@@ -1,4 +1,5 @@
 werobot_session.sqlite3
+modelscope_cache/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
